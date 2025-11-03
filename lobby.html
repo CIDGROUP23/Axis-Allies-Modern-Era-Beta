@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lobby - Axis & Allies Modern Era</title>
+<style>
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    color: #fff;
+    height: 100vh;
+    background: linear-gradient(180deg, #0b0f14, #1a2230);
+  }
+
+  /* Loading Screen */
+  #loadingScreen {
+    position: fixed;
+    inset: 0;
+    background: #0b0f14;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 999;
+    transition: opacity 1s ease;
+  }
+
+  #loadingScreen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #loadingLogo {
+    width: 220px;
+    margin-bottom: 20px;
+  }
+
+  .loading-bar {
+    width: 220px;
+    height: 14px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .loading-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #66b3ff, #3399ff);
+    transition: width 0.4s ease;
+  }
+
+  /* Top-left HUD */
+  #hud {
+    position: fixed;
+    top: 15px;
+    left: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(16,18,24,0.5);
+    padding: 10px 15px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+  }
+
+  #rankImage {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  }
+
+  #usernameRank {
+    display: flex;
+    flex-direction: column;
+  }
+
+  #usernameDisplay {
+    font-weight: bold;
+    color: #66b3ff;
+  }
+
+  #rankText {
+    font-size: 14px;
+    color: #a8cfff;
+  }
+
+  .progress-bar {
+    width: 150px;
+    height: 10px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 6px;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #66b3ff, #3399ff);
+    width: 0%;
+    transition: width 0.8s ease;
+  }
+
+  button {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 6px;
+    background: #66b3ff;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  button:hover {
+    filter: brightness(1.2);
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading screen -->
+<div id="loadingScreen">
+  <img id="loadingLogo" src="Axis & Allies Modern Era.png" alt="Game Logo" />
+  <div class="loading-bar">
+    <div class="loading-fill" id="loadingFill"></div>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud" style="display:none;">
+  <img id="rankImage" src="" alt="Rank" />
+  <div id="usernameRank">
+    <div id="usernameDisplay"></div>
+    <div id="rankText"></div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+</div>
+
+<button id="logoutBtn" style="display:none;">Logout</button>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const { createClient } = supabase;
+const SUPABASE_URL = "https://fvovbhjpickfuepsuukg.supabase.co";
+const SUPABASE_KEY = "YOUR_SUPABASE_KEY"; // Replace with your key
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const loadingScreen = document.getElementById("loadingScreen");
+const loadingFill = document.getElementById("loadingFill");
+const hud = document.getElementById("hud");
+const logoutBtn = document.getElementById("logoutBtn");
+
+async function simulateLoading() {
+  for (let i = 0; i <= 100; i++) {
+    loadingFill.style.width = i + "%";
+    await new Promise(r => setTimeout(r, 8));
+  }
+}
+
+async function loadLobby() {
+  const username = localStorage.getItem("username");
+  if (!username) {
+    window.location.href = "index.html";
+    return;
+  }
+  document.getElementById("usernameDisplay").textContent = username;
+
+  try {
+    // Fetch exp if column exists; otherwise default 0
+    let exp = 0;
+    const { data, error } = await supabaseClient
+      .from("users")
+      .select("exp")
+      .eq("username", username)
+      .maybeSingle();
+
+    if (data && data.exp !== undefined) exp = data.exp;
+
+    // Build XP table
+    const xpTable = [0];
+    let total = 0, increment = 25;
+    for (let i=1;i<=150;i++){total+=increment;xpTable.push(total);increment+=10;}
+
+    let rank=1;
+    for(let i=1;i<xpTable.length;i++){if(exp<xpTable[i])break;rank=i+1;}
+    if(rank>150) rank=150;
+
+    const prevXP = xpTable[rank-2] || 0;
+    const nextXP = xpTable[rank-1] || prevXP+25;
+    const currentProgress = exp-prevXP;
+    const neededXP = nextXP-prevXP;
+    const percent = Math.min(100,(currentProgress/neededXP)*100);
+
+    const imageIndex = rank===1?1:Math.min(76,Math.ceil(rank/2));
+    document.getElementById("rankImage").src = `ranks/${imageIndex}.png`;
+    document.getElementById("rankText").textContent = `Rank ${rank} (${exp} XP)`;
+    document.getElementById("progressFill").style.width = percent+"%";
+
+  } catch(err){
+    console.error(err);
+  }
+}
+
+(async()=>{
+  await simulateLoading();
+  await loadLobby();
+
+  loadingScreen.classList.add("hidden");
+  hud.style.display = "flex";
+  logoutBtn.style.display = "block";
+})();
+
+logoutBtn.onclick = ()=>{
+  localStorage.removeItem("username");
+  window.location.href="index.html";
+};
+</script>
+</body>
+</html>
